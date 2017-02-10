@@ -1,0 +1,6 @@
+cd /d "D:\" #where is file with script
+
+
+Powershell.exe -executionpolicy remotesigned -File "nazwa skryptu.ps1"  >> "D:\\_log\log.txt" #srypt + dopisanie do loga
+
+
