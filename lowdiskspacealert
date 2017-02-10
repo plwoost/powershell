@@ -1,0 +1,134 @@
+#################################
+#TXT LOG stored in a _Log folder#
+#################################
+
+$File = Get-Content -Path "D:\Servers.txt"
+$DiskReport = ForEach ($Servernames in ($File)) 
+
+{Get-WmiObject win32_logicaldisk -ComputerName $Servernames -Filter "Drivetype=3" | Where-Object {   ($_.freespace/$_.size) -le '0.1'}}
+
+$DiskReport | 
+
+Select-Object @{Label = "Server Name";Expression = {$_.SystemName}},
+@{Label = "IP ADDRESS";Expression = {[System.Net.Dns]::gethostentry($_.SystemName) | select -ExpandProperty AddressList | select -first 1}},
+@{Label = "Drive Letter";Expression = {$_.DeviceID}},
+@{Label = "Total Capacity (GB)";Expression = {"{0:N1}" -f( $_.Size / 1gb)}},
+@{Label = "Free Space (GB)";Expression = {"{0:N1}" -f( $_.Freespace / 1gb ) }},
+@{Label = 'Free Space (%)'; Expression = {"{0:P0}" -f ($_.freespace/$_.size)}},
+@{Label = "Report Date";Expression = {get-date -format G}}
+
+######################
+#DiskReport Generator#
+######################
+
+$File = Get-Content -Path "D:\Servers.txt"
+$DiskReport = ForEach ($Servernames in ($File)) 
+
+{Get-WmiObject win32_logicaldisk -ComputerName $Servernames -Filter "Drivetype=3" | Where-Object {   ($_.freespace/$_.size) -le '0.1'}}
+
+$DiskReport | 
+
+Select-Object @{Label = "Server Name";Expression = {$_.SystemName}},
+@{Label = "IP ADDRESS";Expression = {[System.Net.Dns]::gethostentry($_.SystemName) | select -ExpandProperty AddressList | select -first 1}},
+@{Label = "Drive Letter";Expression = {$_.DeviceID}},
+@{Label = "Total Capacity (GB)";Expression = {"{0:N1}" -f( $_.Size / 1gb)}},
+@{Label = "Free Space (GB)";Expression = {"{0:N1}" -f( $_.Freespace / 1gb ) }},
+@{Label = 'Free Space (%)'; Expression = {"{0:P0}" -f ($_.freespace/$_.size)}},
+@{Label = "Report Date";Expression = {get-date -format G}} |
+
+
+##########################################
+# _Output folder is required as a "cache"#
+##########################################
+
+Export-Csv -path "D:\LowDiskSpace.csv" -NoTypeInformation
+Import-CSV -path "D:\LowDiskSpace.csv" | format-table > "D:\LowDiskSpace.txt"
+
+######################################
+#Don't send email if all disks are ok#
+######################################
+
+$file1 = "D:\LowDiskSpace.txt"
+if((Get-Content $file1) -eq $Null)
+	{
+        Write-Host (Get-Date) + "All Disks Are OK!" + "`r`n"
+	exit
+	}
+    else
+	{
+     
+
+###########################
+#mail Generator           #
+###########################
+
+
+$MailServer = "inet.de.abb.com"                     # The DNS of the mail server    
+
+$Instance = “JDE – SP- HTML”                       # Used in Email function
+$file = "D:\LowDiskSpace.txt"
+$att = New-object system.net.mail.Attachment($file)
+
+# -----------------------------------------------------------------------------------------------------------------------
+
+# Send- Email Function
+
+Function SendMail
+
+{
+
+   $message = New-Object System.Net.Mail.MailMessage
+
+   $message.From  = New-Object System.Net.Mail.MailAddress "from address email"
+
+   ###Address List###
+
+   $Address1 = New-Object System.Net.Mail.MailAddress "recepient email"
+
+   
+   #TO:#
+
+   $message.To.Add($Address1)
+
+
+   #CC:#
+
+   $message.cc.Add($Address5)
+
+
+ 
+ $message.Subject = "Low Disk Space Alert "
+ $Body = "Some of the disks need to be cleaned. Please find attached report"
+ $message.Attachments.Add($att)
+
+   $message.Body = $Body
+
+   $smtp = New-Object System.Net.Mail.SMTPClient –ArgumentList $MailServer
+
+   try {
+
+      $smtp.Send($message)
+
+   }
+
+   catch {
+
+     Write-Host "Error sending smtp mail : {0}" -f $Error.ToString()
+
+   }
+
+  $message.Dispose()
+
+}
+
+   SendMail
+#}
+######################
+#Clean-up/Remove File#
+######################
+# Start-Sleep -s 1
+
+Remove-Item "D:\_Output\*"
+#$FilePathName = "D:\_Output\*"
+#if (Test-Path $FilePathName) {Remove-Item $FilePathName}
+}
