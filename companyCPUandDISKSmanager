@@ -1,0 +1,204 @@
+#################################
+#TXT LOG stored in a _Log folder#
+#################################
+
+$File = Get-Content -Path "D:\" #serverlist path : name servers.txt
+$DiskReport = ForEach ($Servernames in ($File)) 
+
+{Get-WmiObject win32_logicaldisk -ComputerName $Servernames -Filter "Drivetype=3"}
+
+$DiskReport | 
+
+Select-Object @{Label = "Server Name";Expression = {$_.SystemName}},
+@{Label = "IP ADDRESS";Expression = {[System.Net.Dns]::gethostentry($_.SystemName) | select -ExpandProperty AddressList | select -first 1}},
+@{Label = "Drive Letter";Expression = {$_.DeviceID}},
+@{Label = "Total Capacity (GB)";Expression = {"{0:N1}" -f( $_.Size / 1gb)}},
+@{Label = "Free Space (GB)";Expression = {"{0:N1}" -f( $_.Freespace / 1gb ) }},
+@{Label = 'Free Space (%)'; Expression = {"{0:P0}" -f ($_.freespace/$_.size)}},
+@{Label = "Report Date";Expression = {get-date -format G}}
+
+######################
+#DiskReport Generator#
+######################
+
+$File = Get-Content -Path "D:\" #serverlist path : name servers.txt
+$DiskReport = ForEach ($Servernames in ($File)) 
+
+{Get-WmiObject win32_logicaldisk -ComputerName $Servernames -Filter "Drivetype=3"}
+
+$DiskReport | 
+
+Select-Object @{Label = "Server Name";Expression = {$_.SystemName}},
+@{Label = "IP ADDRESS";Expression = {[System.Net.Dns]::gethostentry($_.SystemName) | select -ExpandProperty AddressList | select -first 1}},
+@{Label = "Drive Letter";Expression = {$_.DeviceID}},
+@{Label = "Total Capacity (GB)";Expression = {"{0:N1}" -f( $_.Size / 1gb)}},
+@{Label = "Free Space (GB)";Expression = {"{0:N1}" -f( $_.Freespace / 1gb ) }},
+@{Label = 'Free Space (%)'; Expression = {"{0:P0}" -f ($_.freespace/$_.size)}},
+@{Label = "Report Date";Expression = {get-date -format G}} |
+
+Export-Csv -path "D:\DiskReport.csv" -NoTypeInformation  #path to export CSV file 
+Import-CSV -path "D:\DiskReport.csv" | format-table > "D:\Program Files (x86)\MonitorTerminals\_Output\DiskReport.txt" #import from CSV to txt file
+
+###########################
+#CPU info + mail Generator#
+###########################
+
+# Initializing global variables
+
+$computerName = "coumputer ping"                      # Used in Email function and main script
+
+$ThresholdMemory = 1                                             # Threshold Memory has been configured with value 90
+
+$RAMPercentUsed= 0                                          # Initial value has been set to 0
+
+$CPULoad=0                                                   # Allocating the CPU load of the machine to 0
+
+$MailServer = "smtp server"                     # The DNS of the mail server    
+
+$Instance = “JDE – SP- HTML”                       # Used in Email function
+$file = "D:\DiskReport.txt"
+$att = New-object system.net.mail.Attachment($file)
+$DATE = Get-Date
+
+# -----------------------------------------------------------------------------------------------------------------------
+
+# Send- Email Function
+
+Function SendMail
+
+{
+
+   $message = New-Object System.Net.Mail.MailMessage
+
+   $message.From  = New-Object System.Net.Mail.MailAddress "from@email.com" #from email
+
+   #Address List#
+
+   $Address1 = New-Object System.Net.Mail.MailAddress "my@email" #recepient
+  
+   
+   #TO:#
+
+   $message.To.Add($Address1)
+
+
+   #CC:#
+
+   $message.cc.Add($Address5)
+
+
+   #$message.Subject = "Memory usage + Disk Usage [" +$computerName + " –" + $Instance+ "]: " +$RAMPercentUsed+ "%"
+   #$Body = "Physical Memory: "  +$RAMPercentFree+  "% `r`n`r`nCPU Usage: "  +$CPULoad+  "%" 
+
+ 
+ $message.Subject = "Utilization information"
+ $Body = $alloutput
+ $message.Attachments.Add($att)
+
+   $message.Body = $Body 
+
+   $smtp = New-Object System.Net.Mail.SMTPClient –ArgumentList $MailServer
+
+   try {
+
+      $smtp.Send($message)
+
+   }
+
+   catch {
+
+     Write-Host "Error sending smtp mail : {0}" -f $Error.ToString()
+
+   }
+
+  $message.Dispose()
+
+}
+
+# -----------------------------------------------------------------------------------------------------------------------
+
+
+# Main Script
+
+$ConfirmPreference = "None"                                     # No Confirm prompt
+
+$ErrorActionPreference = "SilentlyContinue"              # Continue on error
+$alloutput = ""
+
+$computerName = "ip address"   #ipaddress
+$computerName = $computerName.toupper()
+write-output $computerName
+
+$SystemInfo = Get-WmiObject -Class Win32_OperatingSystem -computername $computerName | Select-Object Name, TotalVisibleMemorySize, FreePhysicalMemory
+
+ #Retrieving the total physical memory and free memory
+
+$TotalRAM = $SystemInfo.TotalVisibleMemorySize/1MB
+
+$FreeRAM = $SystemInfo.FreePhysicalMemory/1MB
+
+$UsedRAM = $TotalRAM - $FreeRAM
+
+$RAMPercentUsed = ($UsedRAM / $TotalRAM) * 100
+
+$RAMPercentUsed = [Math]::Round($RAMPercentUsed, 2)
+
+write-output $RAMPercentUsed
+
+$CPU = Get-WmiObject win32_processor -computername $computerName  | Measure-Object -property LoadPercentage -Average | Select Average    
+
+#Get CPU load of machine
+
+$CPULoad=$CPU.average  
+
+write-output $CPULoad
+
+$alloutput = $alloutput + "Generated at:" + "`t" + $DATE + "`r`n" + "`r`n" + "`r`n" 
+$alloutput = $alloutput + $computerName + "`t" + "RAM Percent used: " + $RAMPercentUsed + "`t" + " CPU Load: " +  $CPULoad + "`r`n" + "`r`n"
+
+#############
+# NEXT HOST #
+#############
+
+$computerName = "computer ip" #computer IP if you want to get more PC just COPY HOST
+$computerName = $computerName.toupper()
+write-output $computerName
+
+$SystemInfo = Get-WmiObject -Class Win32_OperatingSystem -computername $computerName | Select-Object Name, TotalVisibleMemorySize, FreePhysicalMemory
+
+ #Retrieving the total physical memory and free memory
+
+$TotalRAM = $SystemInfo.TotalVisibleMemorySize/1MB
+
+$FreeRAM = $SystemInfo.FreePhysicalMemory/1MB
+
+$UsedRAM = $TotalRAM - $FreeRAM
+
+$RAMPercentUsed = ($UsedRAM / $TotalRAM) * 100
+
+$RAMPercentUsed = [Math]::Round($RAMPercentUsed, 2)
+
+write-output $RAMPercentUsed
+
+$CPU = Get-WmiObject win32_processor -computername $computerName  | Measure-Object -property LoadPercentage -Average | Select Average    
+
+#Get CPU load of machine
+
+$CPULoad=$CPU.average  
+
+write-output $CPULoad
+$alloutput = $alloutput + $computerName + "`t" + "RAM Percent used: " + $RAMPercentUsed + "`t" + " CPU Load: " +  $CPULoad + "`r`n" + "`r`n"
+
+
+################################
+# Additional message in a body #
+################################
+
+$alloutput = $alloutput + "`r`n" + "+ Please find Disk Usage Report attached" + "`r`n" 
+
+
+#Calculating the memory used and rounding it to 2 significant figures
+#if ( $RAMPercentUsed -ge $ThresholdMemory ){
+
+   SendMail
+#}
